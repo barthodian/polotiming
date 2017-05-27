@@ -1,0 +1,14 @@
+{
+  "name": "polotiming",
+  "description": "",
+  "main": "polocheck.js",
+  "license": "MIT",
+  "homepage": "https://github.com/barthodian/polotiming",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}

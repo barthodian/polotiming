@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Polocheck</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="/bower_components/material-design-lite/material.min.css">
+	<script src="/bower_components/material-design-lite/material.min.js"></script>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+	<script src="/bower_components/autobahn/autobahn.min.js"></script>
+	<script src="/bower_components/vis/dist/vis.min.js"></script>
+	<link href="/bower_components/vis/dist/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+<div class="mdl-layout mdl-js-layout">
+	<main class="mdl-layout__content">
+		<div class="page-content">
+			<div class="mdl-grid">
+				<div class="mdl-cell mdl-cell--12-col">
+					<h1 id="header"></h1>
+					<p id="btc"></p>
+					<p id="usd"></p>
+					<p id="percentage"></p>
+					<div id="visualization"></div>			
+					
+				</div>
+			</div>
+		</div>
+	</main>	
+</div>
+
+<script type="text/javascript">
+
+let wsuri = "wss://api.poloniex.com"
+let connection = new autobahn.Connection({
+	url: wsuri,
+	realm: "realm1"
+})
+let polo = {}
+
+var currency = "BTC_ETH"
+document.getElementById("header").innerText = currency
+document.getElementById("btc").innerText = "Establishing connection ..."
+connection.onopen = (session) => {
+	document.getElementById("btc").innerText = "Sucess! Wait for update ..."
+    function tickerEvent (args,kwargs) {
+        //console.log(args)
+        if (args[0] == "BTC_ETH"){
+
+        	var request = new XMLHttpRequest()
+        	request.open('GET', 'https://api.coinbase.com/v2/prices/spot?currency=USD', true)
+			request.onload = function() {
+			  if (request.status >= 200 && request.status < 400) {
+			    // Success!
+			    polo.coinbase = JSON.parse(request.responseText)
+			    polo.old = 
+			    polo.btc = Number(args[1])
+			    polo.convert = args[1] * polo.coinbase.data.amount + " " + polo.coinbase.data.currency
+
+				document.getElementById("btc").innerText = polo.btc + " BTC"
+				document.getElementById("usd").innerText = polo.convert
+				if (typeof polo.btc != "undefined"){
+
+					document.getElementById("percentage").innerText = polo.convert
+				}
+			  } else {
+			    // We reached our target server, but it returned an error
+			  }
+			}
+			request.send();
+
+			console.log(Date.now() + "\tETH: " + args[1] + " BTC " + "\tConversion: "
+			 + polo.convert
+				)
+
+        }
+    }
+
+    session.subscribe('ticker', tickerEvent)
+
+}
+ 
+connection.onclose = () => {
+	console.log("Websocket connection closed")
+}
+                       
+connection.open()
+
+var DELAY = 1000; // delay in ms to add new data points
+
+// create a graph2d with an (currently empty) dataset
+var container = document.getElementById('visualization');
+var dataset = new vis.DataSet();
+
+var options = {
+	start: vis.moment().add(-30, 'seconds'), // changed so its faster
+	end: vis.moment(),
+	dataAxis: {
+		left: {
+			range: {
+			  min: 0, max: 1
+			}
+		}
+	},
+	drawPoints: {
+		style: 'circle' // square, circle
+	},
+	shaded: {
+		orientation: 'bottom' // top, bottom
+	}
+};
+var graph2d = new vis.Graph2d(container, dataset, options);
+
+// a function to generate data points
+function y(x) {
+	if (typeof polo.btc != "undefined"){
+		//console.log("Polo.BTC: " + polo.btc)
+		graph2d.setOptions({
+			dataAxis:{
+				left:{
+					range:{
+						min: polo.btc - (polo.btc * 0.1), max: polo.btc + (polo.btc * 0.1)
+					}
+				}
+			}
+		})
+		//console.log(options.dataAxis.left.range.min = polo.btc - 0.001)
+		//options.dataAxis.left.range.max = polo.btc + 0.001
+		return polo.btc
+	} else {
+		return 0;
+	}
+}
+
+function renderStep() {
+// move the window (you can think of different strategies).
+	var now = vis.moment();
+	var range = graph2d.getWindow();
+	var interval = range.end - range.start;
+
+	if (now > range.end) {
+		graph2d.setWindow(now - 0.1 * interval, now + 0.9 * interval);
+	}
+	setTimeout(renderStep, DELAY);
+}
+renderStep();
+
+/**
+* Add a new datapoint to the graph
+*/
+function addDataPoint() {
+	// add a new data point to the dataset
+	var now = vis.moment();
+	dataset.add({
+		x: now,
+		y: y(now)
+	});
+
+	// remove all data points which are no longer visible
+	var range = graph2d.getWindow();
+	var interval = range.end - range.start;
+	var oldIds = dataset.getIds({
+		filter: function (item) {
+			return item.x < range.start - interval;
+		}
+	});
+	dataset.remove(oldIds);
+
+	setTimeout(addDataPoint, DELAY);
+}
+addDataPoint();
+
+</script>
+</body>
+</html>
